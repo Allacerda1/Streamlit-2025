@@ -1,6 +1,21 @@
 import streamlit as st
 import pandas as pd
 
+    # Criando Estatística Básicas.
+def calc_estatistica_geral(df):
+        df_data = df.groupby(by="Data")[["Valor"]].sum()
+        df_data["lag_1"] = df_data["Valor"].shift(1)
+        df_data["Diferença Mensal"] = df_data["Valor"] - df_data["lag_1"]
+        df_data["Média 6M Diferença Abs."] = df_data["Diferença Mensal"].rolling(6).mean()
+        df_data["Média 12M Diferença Abs."] = df_data["Diferença Mensal"].rolling(12).mean()
+        df_data["Diferença Mensal Relativa"] = df_data["Diferença Mensal"] / df_data["lag_1"] -1
+        df_data["Evolução 6M Total"] = df_data["Valor"].rolling(6).apply(lambda x: x[-1] - x[0])
+        df_data["Evolução 12M Total"] = df_data["Valor"].rolling(12).apply(lambda x: x[-1] - x[0])
+        df_data["Evolução 6M Relativa"] = df_data["Evolução 6M Total"].rolling(6).apply(lambda x: x[-1] - x[0] -1)
+        df_data["Evolução 12M Relativa"] = df_data["Evolução 12M Total"].rolling(12).apply(lambda x: x[-1] - x[0] -1)
+        df_data = df_data.drop(columns=["lag_1"])
+        return df_data
+
 # Configurações do app
 st.set_page_config(page_title="Finanças", page_icon=":moneybag:", layout="centered")
 
@@ -43,3 +58,66 @@ if arquivo:
     with tab_share:
         data = st.selectbox("Selecione uma data", options= df_instituicao.index) 
         st.bar_chart(df_instituicao.loc[data])
+
+    dados3 = st.expander("📋 Estatística Geral", expanded=False)
+    # Cria tabela de estatística geral
+    df_status = calc_estatistica_geral(df)
+    # Formatar colunas em R$ e %
+    coluna_formatada = {
+         "Valor": st.column_config.NumberColumn("Valor", format="R$ %.2f"),
+         "Diferença Mensal": st.column_config.NumberColumn("Diferença Mensal", format="R$ %.2f"),
+         "Média 6M Diferença Abs.": st.column_config.NumberColumn("Média 6M Diferença Abs.", format="R$ %.2f"),
+         "Média 12M Diferença Abs.": st.column_config.NumberColumn("Média 12M Diferença Abs.", format="R$ %.2f"),
+         "Evolução 6M Total": st.column_config.NumberColumn("Evolução 6M Total", format="R$ %.2f"),
+         "Evolução 12M Total": st.column_config.NumberColumn("Evolução 12M Total", format="R$ %.2f"),
+         "Diferença Mensal Relativa": st.column_config.NumberColumn("Diferença Mensal Relativa", format="percent"),
+         "Evolução 6M Relativa": st.column_config.NumberColumn("Evolução 6M Relativa", format="percent"),
+         "Evolução 12M Relativa": st.column_config.NumberColumn("Evolução 12M Relativa", format="percent"),
+    }
+
+    tab_status,tab_abs, tab_rel = dados3.tabs(["📝 Dados", "📊 Histórico Evolução", "📊 Crecimento Relativo"])
+
+    with tab_status:
+     st.dataframe(df_status, column_config=coluna_formatada)
+    
+    with tab_abs:
+        abs_colns = ["Diferença Mensal", "Média 6M Diferença Abs.", "Média 12M Diferença Abs."]
+        st.line_chart(df_status[abs_colns])
+
+    with tab_rel:
+        rel_colns = ["Diferença Mensal Relativa", "Evolução 6M Relativa", "Evolução 12M Relativa"]
+        st.line_chart(df_status[rel_colns])
+        
+    with st.expander("Metas", expanded=False):
+        col1, col2 = st.columns(2)
+
+        data_inicio_meta = col1.date_input("Data de Início da Meta", max_value=df_status.index.max())
+        data_filtrada = df_status.index[df_status.index <= data_inicio_meta][-1]
+
+        custos_fixos = col1.number_input("Custos Fixos", min_value=0., format="%.2f")
+
+        salario_bruto = col2.number_input("Salário Bruto", min_value=0., format="%.2f")
+        salario_liquido = col2.number_input("Salário Liquido", min_value=0., format="%.2f")
+
+        valor_inicio = df_status.loc[data_filtrada]["Valor"]
+        col1.markdown(f"Valor do Inicio da Meta: R$ {valor_inicio:.2f}")
+
+        col1_pot, col2_pot = st.columns(2)
+        mensal = salario_liquido - custos_fixos
+        anual = mensal * 12
+
+        with col1_pot.container(border=True):
+            st.markdown(f"Potencial Arrecadação Mês:\n\n R$ {mensal:.2f}")
+        
+        with col2_pot.container(border=True):
+            st.markdown(f"Potencial Arrecadação Anual:\n\n R$ {anual:.2f}")
+
+        with st.container(border=True):
+            col1_meta, col2_meta = st.columns(2)
+            with col1_meta:
+                meta_estipulada = st.number_input("Meta Estipulada", min_value=-999999999., format="%.2f", value=mensal)
+
+            with col2_meta:
+                patrimonio_final = meta_estipulada + valor_inicio
+                st.markdown(f"Patrimônio Estimado pós Meta:\n\n R$ {patrimonio_final:.2f}")
+ 
