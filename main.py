@@ -1,5 +1,20 @@
+# %%
 import streamlit as st
 import pandas as pd
+import requests
+import datetime
+
+# Criando uma função para buscar os dados da Selic via API. 
+@st.cache_data(ttl="1day")
+def get_selic():
+    url = "https://bcb.gov.br/api/servico/sitebcb/historicotaxasjuros"
+    resp = requests.get(url)
+    df = pd.DataFrame(resp.json()["conteudo"])
+    df['"DataInicioVigencia"'] = pd.to_datetime(df['"DataInicioVigencia"']).dt.date
+    df['"DataFimVigencia"'] = pd.to_datetime(df['"DataFimVigencia"']).dt.date
+    df['"DataFimVigencia"'] = df['"DataFimVigencia"'].fillna(datetime.datetime.today().date())
+    return df
+# %%
 
     # Criando Estatística Básicas.
 def calc_estatistica_geral(df):
@@ -102,15 +117,26 @@ if arquivo:
         valor_inicio = df_status.loc[data_filtrada]["Valor"]
         col1.markdown(f"Valor do Inicio da Meta: R$ {valor_inicio:.2f}")
 
+        selic_gov = get_selic()
+        filtro_selic_data = (selic_gov["DataInicioVigencia"] <= data_inicio_meta) & (selic_gov["DataFimVigencia"] >= data_inicio_meta)
+        selic_default = selic_gov[filtro_selic_data]["MetaSelic"].iloc[0]
+
+        selic = st.number_input("Selic", min_value=selic_default, format="%.2f")
+        selic_ano = selic / 100
+        selic_mes = (selic_ano + 1)**(1/12) - 1
+
+        rendimento_ano = valor_inicio * selic_ano
+        rendimento_mes = valor_inicio * selic_mes
+
         col1_pot, col2_pot = st.columns(2)
-        mensal = salario_liquido - custos_fixos
-        anual = mensal * 12
+        mensal = salario_liquido - custos_fixos + valor_inicio * selic_mes
+        anual = 12*(salario_liquido - custos_fixos) + valor_inicio *selic_mes
 
         with col1_pot.container(border=True):
-            st.markdown(f"Potencial Arrecadação Mês:\n\n R$ {mensal:.2f}")
+            st.markdown(f"Potencial Arrecadação Mês:\n\n R$ {mensal:.2f}", help=f"{salario_liquido:.2f} + (-{custos_fixos:.2f}) + {rendimento_mes:.2f}")
         
         with col2_pot.container(border=True):
-            st.markdown(f"Potencial Arrecadação Anual:\n\n R$ {anual:.2f}")
+            st.markdown(f"Potencial Arrecadação Anual:\n\n R$ {anual:.2f}", help=f" 12*({salario_liquido:.2f} + (-{custos_fixos:.2f})) + {rendimento_ano:.2f}")
 
         with st.container(border=True):
             col1_meta, col2_meta = st.columns(2)
@@ -121,3 +147,5 @@ if arquivo:
                 patrimonio_final = meta_estipulada + valor_inicio
                 st.markdown(f"Patrimônio Estimado pós Meta:\n\n R$ {patrimonio_final:.2f}")
  
+
+# %%
