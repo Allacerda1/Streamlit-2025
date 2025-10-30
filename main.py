@@ -10,9 +10,9 @@ def get_selic():
     url = "https://bcb.gov.br/api/servico/sitebcb/historicotaxasjuros"
     resp = requests.get(url)
     df = pd.DataFrame(resp.json()["conteudo"])
-    df['"DataInicioVigencia"'] = pd.to_datetime(df['"DataInicioVigencia"']).dt.date
-    df['"DataFimVigencia"'] = pd.to_datetime(df['"DataFimVigencia"']).dt.date
-    df['"DataFimVigencia"'] = df['"DataFimVigencia"'].fillna(datetime.datetime.today().date())
+    df["DataInicioVigencia"] = pd.to_datetime(df["DataInicioVigencia"]).dt.date
+    df["DataFimVigencia"] = pd.to_datetime(df["DataFimVigencia"]).dt.date
+    df["DataFimVigencia"] = df["DataFimVigencia"].fillna(datetime.datetime.today().date())
     return df
 # %%
 
